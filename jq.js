@@ -1,30 +1,27 @@
 
 var $ = function(select){
-    var re = new RegExp(/^\#/g),
-        sel = re.exec(select),
-        space = new RegExp(/\s/g),
-        searchSpace = space.exec(select),
-        reEl;
 
-    if(sel){
-        reEl = document.querySelector(select);
+    if($.isString(select)){
+        return document.querySelectorAll(select);
     }else{
-        if(searchSpace){
-            reEl = document.querySelector(select);
-        }else{
-            reEl = document.querySelectorAll(select);
-        }
-    }
-
-    if(reEl.length === 1){
-        return reEl[0];
-    }else{
-        return reEl;
+        throw new Error("$ function must be string")
     }
 }
-
-$.isArray = function(obj){
-    return Object.prototype.toString.call(obj) === "[object Array]";
+/**
+* @describe 判断元素是不是数组
+* @param arr = [any] 输入任何变量、数组都可以
+* @return 返回boolean
+* */
+$.isArray = function(arr){
+    return $.objtype(arr) === "[object Array]";
+}
+/**
+ * @describe 判断元素是不是字符串
+ * @param str = [any] 输入任何变量、数组都可以
+ * @return 返回boolean
+ * */
+$.isString = function(str){
+    return $.objtype(str) === "[object String]";
 }
 
 $.param = function(obj){
@@ -59,9 +56,13 @@ $.param = function(obj){
     }
     return arr.join('&')
 }
-
-$.objtype = function(){
-    return Object.prototype.toString.call(arguments[0])
+/**
+ * @describe 判断参数类型
+ * @param obj = [any] 输入任何变量、数组都可以
+ * @return 返回对象元素
+ * */
+$.objtype = function(obj){
+    return Object.prototype.toString.call(obj)
 }
 
 $.ajax = function(){
@@ -93,12 +94,9 @@ $.ajax = function(){
 
         if(obj.async!="false"&&obj.success){
             ajax.onreadystatechange = function(){
-                if(ajax.readyState==4&&ajax.status==200){
-                    if(ajax.responseXML){
-                        obj.success(ajax.responseXML)
-                    }else{
-                        obj.success(ajax.responseText)
-                    }
+                if(ajax.readyState==4&&ajax.status==200||400){
+                    obj.success(ajax.responseText)
+
                 }else {
                     console.error(ajax.onerror)
                 }
@@ -111,7 +109,11 @@ $.ajax = function(){
         console.error("arguments is not a object")
     }
 }
-
+/**
+* @describe 图片预加载策略,新建仅仅支持图片、css、js
+* @param imgURL = [URLString[]] 这里输入图片地址，必须是数组形式
+* @return imgElement 直接返回了图片元素
+* */
 $.preload = function(){
     if($.objtype(arguments[0]).match(/String/)){
         preloadFn(arguments[0],arguments[1],arguments[2])
@@ -123,8 +125,11 @@ $.preload = function(){
         console.error("arguments must string or array")
     }
 
+    /**
+    * @describe 预加载函数
+    * */
     function preloadFn(str,callback1,callback2){
-        if(str.match(/\.jpg$/)){
+        if(str.match(/\.jpg|png|gif$/)){
             var img = new Image();
 
             img.onloadstart = function(){
@@ -168,5 +173,115 @@ $.preload = function(){
         }
     }
 }
+/**
+ * @describe 动态添加dom元素
+ * @param parent = [Element] 输入父元素
+ *        obj = [childObj]
+ *        childObj输入子元素类型
+ *        childObj有以下属性：
+ *              element: [DomName] 创建的元素标签
+ *              id: [String] 元素对应的id
+ *              className:[String] 元素对应的class
+ *              attr:[String|Object] 可以输入字符串或者元素对应的元素属性
+ *              children:Object 这个对象可以直接输入这个元素对应的子元素
+ *              text: 这个元素的下的文字
+ *
+ *        callback = [Function] 这是个回调函数,参数是创建出来的元素
+ * @example
+ *  $.addEl($("body")[0],{
+ *      element:"div",
+ *      id:"test,
+ *      className:"abc",
+ *      这里属性有两种写法，一种对象，一种是字符串
+ *
+ *      //attr:"data-id='abc',onclick=Function",
+ *      attr:{
+ *         "data-id":'abc',
+ *         onclick:Function
+ *      }
+ *      children:Object, children 的写法就是父元素的写法
+ *      text:"这是一个测试",
+ *
+ *  },function(el){})
+ *
+ * */
+$.addEl = function(parent,obj,callback){
+    var option = {
+        element:obj.element || "div",
+        id:obj.id,
+        className:obj.className,
+        attr:obj.attr,
+        children:obj.children,
+        text:obj.text
+    }
 
+    var el = document.createElement(option.element);
+    //判断是否为dom元素
+    if(!/HTML/g.test($.objtype(parent))){
+        throw new Error("父元素不是DOM");
+        return false;
+    }
+    //设置元素id
+    if(!!obj.id){
+        el.id = obj.id
+    }
+    //设置元素class
+    if(!!obj.className){
+        el.className = obj.className
+    }
+    //设置元素属性
+    if($.isString(obj.attr)){
+        obj.attr = $.stringToObjForAddElFunction(obj.attr);
+    }
+    if(!!obj.attr){
+        for(var i in obj.attr){
+            el.setAttribute(i,obj.attr[i])
+        }
+    }
+    //设置元素内容
+    if(!!obj.text){
+        el.innerText = obj.text
+    }
+    //判断是否有子元素
+    if(!!obj.children){
+        if($.isArray(obj.children)){
+            obj.children.map(function(els){
+                $.addEl(el,els)
+            })
+        }else{
+            $.addEl(el,obj.children)
+        }
+    }
 
+    if(callback) callback(el);
+
+    try {
+        parent.appendChild(el)
+    }catch (e){
+        throw new Error("发生错误")
+    }
+}
+/**
+ * @describe 这个函数是为了addEl函数中的obj.attr这个对象准备的，如果是字符串就切成对象
+ * @param str = [string]
+ * @return object
+ * */
+$.stringToObjForAddElFunction = function(str){
+    if($.isString(str)){
+        //先根据逗号划分所有字符串
+        var str = str.split(",");
+        var objArr = [],obj={};
+        for(var i=str.length;i--;){
+            //先根据等号划分所有字符串
+            objArr = objArr.concat(str[i].split("="));
+        }
+        console.log(objArr.length)
+        for(var i=0;i<objArr.length;i=i+2){
+            console.log(i);
+            obj[objArr[i]] = objArr[i+1]
+        }
+        return obj
+    }else{
+        throw new Error("输入的必须是数组")
+    }
+}
